@@ -1,0 +1,186 @@
+---
+title: "Cornwall Teaching Sample - Understanding a t-test"
+output: html_notebook
+---
+
+*Note*
+
+The notebook is a companion file for the "Understanding a t-test" teaching sample. This type of file would be provided to all students if they would like to follow along with the lecture. The code will be self-contained, and will only require the installation of R, RStudio, and some basic packages. At the beginning of the term, I will have all instructions for the installation of these materials.
+
+### Load in data
+
+```{r}
+# load the curl library to read the data file from github
+library(curl)
+
+
+# make note about the original source of the data file. 
+# https://www.kaggle.com/datasets/peimandaii/dataset-of-people
+# import the data file from github via curl
+data = read.csv(curl('https://raw.githubusercontent.com/acornwall009/TeachingSample/refs/heads/main/StudentData.csv'),quote = "", stringsAsFactors = FALSE,row.names = NULL)
+
+# convert the height into inches, we can imagine that we could only find a metric ruler this day.
+data$Height = data$Height * 0.393701
+data$Weight = data$Weight * 2.20462
+```
+
+### Determine Average Height by Hand and Software
+
+```{r}
+# Lets figure out the average height. 
+
+# The mathematical way to figure this is to take the sum of the heights and divide by the number of observations. We can get the sum of the heights by using the sum function in R (to reference a column in R, you type the dataset by name, the use the "$" symbol to look at the columns in that data set):
+
+# Figure sum of heights
+TotalHeight = sum(data$Height)
+
+# How many observations do we can. Do this in R via "nrow(data)" or write it out.
+Observations = 109
+
+# The figure the average height:
+TotalHeight/Observations
+
+# We can also use the "mean()" function in R to do the same thing
+mean(data$Height) # compare this to the one we calculated.
+
+# create a plot of the average height (need to create a summary dataset first):
+data_summary = data %>%
+  summarise(mean = mean(Height),
+            std = sd(Height)) %>%
+  mutate(Group='People')
+
+ggplot(data_summary, aes(Group,mean,fill=Group)) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  geom_errorbar(aes(ymin=mean-std, ymax=mean+std), width=.2,
+                position=position_dodge(.9))
+
+```
+
+### Split the Data Into Groups
+
+```{r}
+# The code below uses the Tidy format to filter the data into two new datasets
+MaleHeight = data %>% filter(Gender=='M')
+FemaleHeight = data %>% filter(Gender=='F')
+```
+
+### Figure the Mean Heights for Both Groups
+
+```{r}
+mean(MaleHeight$Height)
+mean(FemaleHeight$Height)
+
+
+data_summary = data %>%
+  group_by(Gender) %>%
+  summarise(mean = mean(Height),
+            std = sd(Height)) 
+
+ggplot(data_summary, aes(Gender,mean,fill=Gender)) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  geom_errorbar(aes(ymin=mean-std, ymax=mean+std), width=.2,
+                position=position_dodge(.9))
+
+```
+
+### Run a t-Test
+
+```{r}
+# run a t-test in R using the heights from both groups (the var.equal argument tells the test to assume the variance in each group is equal. While not important today, it will be important for future lessons.)
+#t.test(Height~Gender,var.equal=T,data=data)
+
+# the below uses each dataset individually. same result
+t.test(MaleHeight$Height,FemaleHeight$Height,var.equal = T)
+```
+
+### Create the Numerator Values in the t-Test Calculation
+
+```{r}
+# create the numerator pieces
+XBar_Male = mean(MaleHeight$Height)
+XBar_Female = mean(FemaleHeight$Height)
+
+Numerator = XBar_Male-XBar_Female
+Numerator
+```
+
+### Figure N Values
+
+```{r}
+# We will also create variable for the number of people in each group
+n_male = nrow(MaleHeight)
+n_female = nrow(FemaleHeight)
+n_male
+n_female
+```
+
+### Calculate the Sum of Squares
+
+```{r}
+# Calculate the sum of squares
+
+# First, figure the squared difference between each individuals heights and the average height. In R, you can raise something to any number power by using the "^" sign. We will use the average heights for each group that we calculated above.
+MaleHeight$HeightSquaredDifference = (MaleHeight$Height-XBar_Male) ^ 2
+FemaleHeight$HeightSquaredDifference = (FemaleHeight$Height-XBar_Female) ^ 2
+
+# Next we will figure the sum of those squared values for each group.
+MaleSumSquared = sum(MaleHeight$HeightSquaredDifference)
+FemaleSumSquared = sum(FemaleHeight$HeightSquaredDifference)
+
+
+
+```
+
+### Calculate the Numerator
+
+```{r}
+# calculate S numerator
+S_Numerator = MaleSumSquared + FemaleSumSquared
+```
+
+### Calculate S Squared
+
+```{r}
+# calcule s2
+S2 = S_Numerator / (n_male + n_female - 2)
+```
+
+### Calculate the Denominator
+
+```{r}
+# calculate the denominator
+Denominator = sqrt(
+  S2 * ((1/n_male)+(1/n_female))
+)
+
+
+```
+
+### Calculate the t-Value
+
+```{r}
+#calculate t value from numerator and denominator
+tValue = Numerator/Denominator
+```
+
+### Rerun Software t-Test
+
+```{r}
+# rerun t test.
+#t.test(Height~Gender,var.equal=T,data=data)
+t.test(MaleHeight$Height,FemaleHeight$Height,var.equal = T)
+```
+
+### Link to t-Distribution Table
+
+<https://www.stat.purdue.edu/~lfindsen/stat503/t-Dist.pdf>
+
+### Calculate p-Value
+
+```{r}
+# calculate p value (the lower argument tells it to return the lower half of the distribution)
+pt(.78945,107,lower=F)*2
+
+```
